@@ -25,3 +25,5 @@ TestResults.xml
 *.png
 *.mp4
 *.avi
+__pycache__/
+.history/
