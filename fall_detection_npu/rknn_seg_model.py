@@ -18,11 +18,11 @@ except ImportError as exc:
 from nms_utils import xywh2xyxy, nms_boxes, mask_nms, sigmoid
 
 
-def letterbox(im: np.ndarray, new_shape: int = 640, color: Tuple[int, int, int] = (114, 114, 114)) -> np.ndarray:
+def letterbox(im: np.ndarray, new_shape: int = 640, color: Tuple[int, int, int] = (114, 114, 114)) -> Tuple[np.ndarray, Tuple[int, int]]:
     """Letterbox resize maintaining aspect ratio with padding.
 
-    EXACT COPY from export/infer_rknn_seg.py lines 57-73
-    MUST MATCH rknn_pose_model.letterbox exactly
+    Based on export/infer_rknn_seg.py lines 57-73
+    Modified to return actual content size (MUST MATCH rknn_pose_model.letterbox)
 
     Args:
         im: Input image (H, W, 3) BGR
@@ -30,7 +30,8 @@ def letterbox(im: np.ndarray, new_shape: int = 640, color: Tuple[int, int, int] 
         color: Padding color
 
     Returns:
-        Letterboxed image (new_shape, new_shape, 3)
+        im_letterboxed: Letterboxed image (new_shape, new_shape, 3)
+        content_size: (content_width, content_height) - actual content area before padding
     """
     shape = im.shape[:2]  # (h, w)
     if isinstance(new_shape, int):
@@ -46,7 +47,7 @@ def letterbox(im: np.ndarray, new_shape: int = 640, color: Tuple[int, int, int] 
     left, right = int(round(dw - 0.1)), int(round(dw + 0.1))
     im = cv2.copyMakeBorder(im, top, bottom, left, right,
                             cv2.BORDER_CONSTANT, value=color)
-    return im
+    return im, new_unpad  # Return (image, (width, height))
 
 
 class RKNNSegModel:
@@ -109,7 +110,7 @@ class RKNNSegModel:
             Binary mask (imgsz, imgsz) uint8 or None if no bed detected
         """
         # 1. Letterbox and preprocess
-        img = letterbox(frame_bgr, self.imgsz)
+        img, _ = letterbox(frame_bgr, self.imgsz)  # Discard content_size (not needed for bed detection)
         x = img.astype(np.float32)[np.newaxis, ...]  # (1, imgsz, imgsz, 3) NHWC
         # CRITICAL: NO /255 normalization
 

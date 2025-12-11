@@ -18,11 +18,11 @@ except ImportError as exc:
 from nms_utils import xywh2xyxy, nms_boxes
 
 
-def letterbox(im: np.ndarray, new_shape: int = 640, color: Tuple[int, int, int] = (114, 114, 114)) -> np.ndarray:
+def letterbox(im: np.ndarray, new_shape: int = 640, color: Tuple[int, int, int] = (114, 114, 114)) -> Tuple[np.ndarray, Tuple[int, int]]:
     """Letterbox resize maintaining aspect ratio with padding.
 
-    EXACT COPY from export/infer_rknn_pose.py lines 17-33
-    CRITICAL: Do not modify this function
+    Based on export/infer_rknn_pose.py lines 17-33
+    Modified to return actual content size for height-aware fall detection rules
 
     Args:
         im: Input image (H, W, 3) BGR
@@ -30,7 +30,8 @@ def letterbox(im: np.ndarray, new_shape: int = 640, color: Tuple[int, int, int] 
         color: Padding color
 
     Returns:
-        Letterboxed image (new_shape, new_shape, 3)
+        im_letterboxed: Letterboxed image (new_shape, new_shape, 3)
+        content_size: (content_width, content_height) - actual content area before padding
     """
     shape = im.shape[:2]  # (h, w)
     if isinstance(new_shape, int):
@@ -46,7 +47,7 @@ def letterbox(im: np.ndarray, new_shape: int = 640, color: Tuple[int, int, int] 
     left, right = int(round(dw - 0.1)), int(round(dw + 0.1))
     im = cv2.copyMakeBorder(im, top, bottom, left, right,
                             cv2.BORDER_CONSTANT, value=color)
-    return im
+    return im, new_unpad  # Return (image, (width, height))
 
 
 class RKNNPoseModel:
@@ -84,7 +85,7 @@ class RKNNPoseModel:
         if ret != 0:
             raise RuntimeError("Failed to initialize RKNN runtime")
 
-    def preprocess(self, frame_bgr: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def preprocess(self, frame_bgr: np.ndarray) -> Tuple[np.ndarray, np.ndarray, Tuple[int, int]]:
         """Preprocess frame for RKNN inference.
 
         Args:
@@ -93,12 +94,13 @@ class RKNNPoseModel:
         Returns:
             x: (1, imgsz, imgsz, 3) NHWC float32 for inference
             img_letterbox: (imgsz, imgsz, 3) letterboxed image for visualization
+            content_size: (content_width, content_height) - actual content area before padding
         """
-        img_letterbox = letterbox(frame_bgr, self.imgsz)
+        img_letterbox, content_size = letterbox(frame_bgr, self.imgsz)
         x = img_letterbox.astype(np.float32)
         # CRITICAL: NO /255 normalization - built into RKNN model
         x = x[np.newaxis, ...]  # Add batch dimension -> (1, imgsz, imgsz, 3)
-        return x, img_letterbox
+        return x, img_letterbox, content_size
 
     def inference(self, x: np.ndarray) -> np.ndarray:
         """Run RKNN inference.

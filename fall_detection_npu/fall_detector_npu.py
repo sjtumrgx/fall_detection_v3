@@ -87,6 +87,9 @@ def process_video_npu(
     height_orig = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     width = imgsz
     height = imgsz
+    # Track actual content dimensions (will be set per frame after letterbox)
+    content_width = imgsz
+    content_height = imgsz
     logger.info(f"Video opened: fps={fps:.2f}, orig={width_orig}x{height_orig}, output={width}x{height}")
     log_sec_interval = max(1, int(round(fps)))
 
@@ -169,7 +172,8 @@ def process_video_npu(
                 break
 
             # Letterbox preprocessing
-            x, frame = pose_model.preprocess(orig_frame)
+            x, frame, content_size = pose_model.preprocess(orig_frame)
+            content_width, content_height = content_size  # Actual content area before padding
 
             frame_h, frame_w = frame.shape[:2]
 
@@ -535,11 +539,12 @@ def process_video_npu(
                     no_fall_by_wrist_ankle_width = False
                 
                 # New NO-FALL rule: tall bbox and its (height + width) exceeds image height
+                # CRITICAL: Use content_height (actual content area) not height (letterbox size)
                 no_fall_by_tall_large = False
                 try:
                     bw = float(max(1.0, box[2] - box[0]))
                     bh = float(max(1.0, box[3] - box[1]))
-                    if (bw < bh) and ((bw + bh) > float(height)):
+                    if (bw < bh) and ((bw + bh) > float(content_height)):
                         no_fall_by_tall_large = True
                 except Exception:
                     no_fall_by_tall_large = False
