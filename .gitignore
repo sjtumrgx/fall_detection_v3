@@ -27,3 +27,5 @@ TestResults.xml
 *.avi
 __pycache__/
 .history/
+./calibration_dataset
+./dataset
